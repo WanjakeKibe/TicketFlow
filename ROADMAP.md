@@ -8,9 +8,10 @@ Existing:
 
 - FastAPI application in `backend/app/main.py`.
 - Root endpoint at `GET /`.
-- Static health endpoint at `GET /api/v1/health`.
+- Application health endpoint at `GET /api/v1/health`.
+- Database health endpoint at `GET /api/v1/health/db`.
 - Initial SQLAlchemy, PostgreSQL, FastAPI, Pydantic, and Uvicorn dependencies.
-- Empty package boundaries for API, core, database, models, and schemas.
+- Initial settings, SQLAlchemy base, session dependency, and versioned health router.
 - MVP requirements in `.docs/MVP-TECHNICAL-SPEC.md`.
 
 Missing:
@@ -26,6 +27,11 @@ Missing:
 - Automated tests.
 - Docker Compose, CI, and operational documentation.
 - React/TypeScript frontend and agent dashboard.
+
+The current database engine is initialized lazily so the API can import and
+serve non-database routes even when PostgreSQL or its native driver is not
+available. The database health endpoint reports connectivity failures when it
+is called.
 
 The first cleanup should also standardize the application branding from `Ticketflw` to `TicketFlow`, clarify the application entrypoint, and replace the static health response with an application and database health check.
 
