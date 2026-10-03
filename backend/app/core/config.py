@@ -8,9 +8,10 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "development"
     database_url: str = (
-        "postgresql+psycopg2://ticketflow:ticketflow@localhost:5432/ticketflow"
+        "postgresql+pg8000://ticketflow:ticketflow@localhost:5433/ticketflow"
     )
     sql_echo: bool = False
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     model_config = SettingsConfigDict(
         env_file=".env",

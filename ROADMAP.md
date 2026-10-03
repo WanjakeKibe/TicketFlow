@@ -119,6 +119,34 @@ Repositories must not expose unscoped tenant-owned lookups. Every repository met
 - Health checks distinguish application health from database health.
 - Logs do not contain passwords, bearer tokens, or raw API keys.
 
+### Phase 1 exit criteria
+
+Phase 1 is complete only when every gate below passes from a clean checkout.
+Record the commands and results in the handoff notes before moving to Phase 2.
+
+- [ ] `docker compose config` succeeds and the PostgreSQL service is defined
+      with non-secret local development credentials.
+- [ ] `docker compose up -d postgres` starts PostgreSQL and the container
+      reports healthy.
+- [ ] The documented dependency installation command succeeds in a fresh
+      virtual environment.
+- [ ] `alembic upgrade head` succeeds against an empty PostgreSQL database.
+- [ ] `python -m uvicorn app.main:app` starts from the documented directory
+      without import errors.
+- [ ] `GET /` returns the TicketFlow API response.
+- [ ] `GET /api/v1/health` returns HTTP 200 with application status.
+- [ ] `GET /api/v1/health/db` returns HTTP 200 with database status while
+      PostgreSQL is running and a controlled HTTP 503 when it is unavailable.
+- [ ] A request ID is present in every application request log.
+- [ ] Logs contain no passwords, bearer tokens, API keys, or database secrets.
+- [ ] The smoke test suite passes with `pytest`.
+- [ ] CORS behavior is verified for the configured local frontend origin.
+- [ ] `docker compose down -v` removes the local database and the full setup
+      can be repeated successfully.
+
+If any gate fails, Phase 1 remains incomplete. A missing environment prerequisite
+must be documented as a blocker rather than counted as a passing result.
+
 ## 4. Phase Two: Database Model and Migrations
 
 Implement the following tables:
