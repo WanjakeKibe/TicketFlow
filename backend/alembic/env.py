@@ -7,6 +7,7 @@ from sqlalchemy.engine import engine_from_config
 
 from app.core.config import get_settings
 from app.db.base import Base
+import app.models
 
 config = context.config
 settings = get_settings()

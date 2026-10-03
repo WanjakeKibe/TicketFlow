@@ -180,6 +180,40 @@ Implement the following tables:
 - `tickets(company_id, requester_id)`.
 - `idempotency_keys(company_id, key)`.
 
+### Phase 2 exit criteria
+
+Phase 2 is complete only when every gate below passes against a clean
+PostgreSQL database. Phase 3 must not begin until the schema is reproducible
+and the model constraints are covered by tests.
+
+- [ ] All eight specified SQLAlchemy models exist and are imported into
+      `Base.metadata`.
+- [ ] Every tenant-owned table has a non-null `company_id` column and an
+      explicit foreign key to `companies` where applicable.
+- [ ] User roles, ticket statuses, priorities, and event types use defined
+      enums rather than unrestricted strings.
+- [ ] Tenant-local uniqueness constraints exist for company-scoped emails,
+      ticket public IDs, API keys, and idempotency keys.
+- [ ] Required foreign keys, indexes, timestamp columns, and ticket version
+      columns are present in the generated schema.
+- [ ] Ticket events are append-only through the application persistence layer.
+- [ ] `alembic upgrade head` creates all Phase 2 tables from an empty database.
+- [ ] `alembic downgrade base` removes the Phase 2 schema cleanly.
+- [ ] Running `alembic upgrade head` again recreates the complete schema.
+- [ ] Alembic autogenerate reports no uncommitted model changes after migration.
+- [ ] Integration tests create and retrieve records for every model using
+      PostgreSQL.
+- [ ] Integration tests reject missing tenant IDs, invalid foreign keys, and
+      duplicate tenant-scoped values.
+- [ ] Tests prove records from different companies remain distinguishable by
+      `company_id` at the persistence boundary.
+- [ ] `pytest` passes from a clean database, and the senior-backend migration
+      analysis reports no findings.
+
+If any schema, migration, or persistence gate fails, Phase 2 remains
+incomplete. Do not compensate for a failed database constraint with frontend
+validation or route-only checks.
+
 ## 5. Phase Three: Authentication and Tenant Context
 
 ### Deliverables
