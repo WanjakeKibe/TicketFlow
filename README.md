@@ -75,6 +75,11 @@ development and restarts the server when backend files change.
 | `GET /`                 | API welcome response              |
 | `GET /api/v1/health`    | Application health check          |
 | `GET /api/v1/health/db` | PostgreSQL connectivity check     |
+| `POST /api/v1/auth/register` | Register a company owner       |
+| `POST /api/v1/auth/login` | Authenticate and receive a bearer token |
+| `GET /api/v1/me` | Get the authenticated user                   |
+| `POST /api/v1/auth/api-keys` | Create an owner-managed API key     |
+| `DELETE /api/v1/auth/api-keys/{id}` | Revoke an API key              |
 | `GET /docs`             | Interactive Swagger documentation |
 | `GET /openapi.json`     | OpenAPI document                  |
 
@@ -93,11 +98,16 @@ To use a different database, create `backend/.env`:
 DATABASE_URL=postgresql+pg8000://username:password@localhost:5433/ticketflow
 ENVIRONMENT=development
 SQL_ECHO=false
+JWT_SECRET_KEY=replace-with-at-least-32-random-characters
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
 
 PostgreSQL must be running before `/api/v1/health/db` can return a healthy
 response. `pg8000` is used here to avoid the blocked native `psycopg2` DLL on
-Windows.
+Windows. `JWT_SECRET_KEY` must be a stable, randomly generated secret outside
+local development. Passwords use Argon2id, and raw API keys are shown only
+when they are created; only their hashes are stored.
 
 ## Migrations
 
@@ -119,6 +129,7 @@ Run these commands from `backend` with the virtual environment activated:
 python -m compileall -q app
 python -c "from app.main import app; print(sorted(app.openapi()['paths']))"
 python -m pytest -q
+python -m pytest -q tests/test_auth.py
 ```
 
 Run these checks before handing work to the other collaborator. Include any

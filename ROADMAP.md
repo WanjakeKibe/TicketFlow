@@ -248,6 +248,34 @@ Company registration should create the company and its owner in one transaction.
 - A principal from Company A cannot access Company B resources.
 - Authentication failures do not reveal whether an email exists.
 
+### Phase 3 exit criteria
+
+Phase 3 is complete only when every gate below passes. Record the commands
+and results in the handoff notes before moving to Phase 4.
+
+- [x] Company registration creates the company and owner in one transaction.
+- [x] Valid credentials return a short-lived signed bearer access token.
+- [x] Invalid credentials return the same authentication error without
+      revealing whether an email exists.
+- [x] `GET /api/v1/auth/me` returns the current active user.
+- [x] Passwords are hashed with Argon2id and are never stored or logged in
+      plaintext.
+- [x] Inactive users cannot authenticate or use an existing token.
+- [x] The authenticated request identity contains principal type, principal
+      ID, company ID, and role when applicable.
+- [x] Owners can create and revoke company-scoped API keys.
+- [x] Raw API keys are shown only at creation and only hashes are persisted.
+- [x] API-key authentication updates `last_used_at`.
+- [x] Revoked API keys are rejected by the API-key authentication dependency.
+- [x] Forged user tokens cannot cross company boundaries.
+- [x] Focused Phase 3 tests pass with `python -m pytest -q tests/test_auth.py`.
+- [ ] Full backend tests pass with `python -m pytest -q` against the supported
+      PostgreSQL test environment.
+
+If any gate fails, Phase 3 remains incomplete. The full ticket API is not yet
+available, so revoked-key ticket-creation behavior must be verified again when
+the ticket creation endpoint is implemented in Phase 5.
+
 ## 6. Phase Four: Company Administration and Authorization
 
 Implement:
