@@ -71,7 +71,7 @@ def test_register_login_and_me(client: TestClient) -> None:
     registration = register_user(client, "owner@example.com")
 
     me_response = client.get(
-        "/api/v1/auth/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {registration['access_token']}"},
     )
 
@@ -127,7 +127,7 @@ def test_inactive_user_cannot_login_or_use_existing_token(
         },
     )
     me_response = client.get(
-        "/api/v1/auth/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {registration['access_token']}"},
     )
 
@@ -147,7 +147,7 @@ def test_identity_cannot_cross_company_boundary(client: TestClient) -> None:
     )
 
     response = client.get(
-        "/api/v1/auth/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {forged_token}"},
     )
 

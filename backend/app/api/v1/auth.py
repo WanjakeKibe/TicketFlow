@@ -36,6 +36,7 @@ from app.services.auth import (
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+me_router = APIRouter(tags=["authentication"])
 
 
 @router.post(
@@ -81,7 +82,7 @@ def login(
     )
 
 
-@router.get("/me", response_model=UserResponse)
+@me_router.get("/me", response_model=UserResponse)
 def get_me(
     identity: CurrentIdentity,
     db: Annotated[Session, Depends(get_db)],
