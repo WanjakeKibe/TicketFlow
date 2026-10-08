@@ -257,7 +257,7 @@ and results in the handoff notes before moving to Phase 4.
 - [x] Valid credentials return a short-lived signed bearer access token.
 - [x] Invalid credentials return the same authentication error without
       revealing whether an email exists.
-- [x] `GET /api/v1/auth/me` returns the current active user.
+- [x] `GET /api/v1/me` returns the current active user.
 - [x] Passwords are hashed with Argon2id and are never stored or logged in
       plaintext.
 - [x] Inactive users cannot authenticate or use an existing token.
@@ -269,8 +269,8 @@ and results in the handoff notes before moving to Phase 4.
 - [x] Revoked API keys are rejected by the API-key authentication dependency.
 - [x] Forged user tokens cannot cross company boundaries.
 - [x] Focused Phase 3 tests pass with `python -m pytest -q tests/test_auth.py`.
-- [ ] Full backend tests pass with `python -m pytest -q` against the supported
-      PostgreSQL test environment.
+- [x] Full backend tests pass with `python -m pytest -q` against the supported
+      PostgreSQL test environment (`16 passed`, 1 existing deprecation warning).
 
 If any gate fails, Phase 3 remains incomplete. The full ticket API is not yet
 available, so revoked-key ticket-creation behavior must be verified again when
