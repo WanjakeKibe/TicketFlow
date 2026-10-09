@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.auth import me_router, router as auth_router
 from app.api.v1.companies import router as companies_router
 from app.api.v1.health import router as health_router
+from app.api.v1.tickets import router as tickets_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
@@ -31,6 +32,7 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(me_router, prefix="/api/v1")
 app.include_router(companies_router, prefix="/api/v1")
+app.include_router(tickets_router, prefix="/api/v1")
 
 
 @app.get("/")

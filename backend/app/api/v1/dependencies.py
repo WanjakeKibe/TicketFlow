@@ -102,6 +102,25 @@ def get_api_key_identity(
 ApiKeyIdentity = Annotated[RequestIdentity, Depends(get_api_key_identity)]
 
 
+def get_authenticated_identity(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+    api_key: Annotated[str | None, Depends(api_key_scheme)],
+    db: Annotated[Session, Depends(get_db)],
+) -> RequestIdentity:
+    if credentials is not None:
+        return get_current_identity(credentials, db)
+    return get_api_key_identity(api_key, db)
+
+
+AuthenticatedIdentity = Annotated[
+    RequestIdentity,
+    Depends(get_authenticated_identity),
+]
+
+
 def require_owner(identity: CurrentIdentity) -> RequestIdentity:
     if identity.role != UserRole.OWNER:
         raise HTTPException(
