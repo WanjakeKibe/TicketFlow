@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
@@ -111,3 +112,23 @@ def require_owner(identity: CurrentIdentity) -> RequestIdentity:
 
 
 OwnerIdentity = Annotated[RequestIdentity, Depends(require_owner)]
+
+
+def require_roles(*allowed_roles: UserRole) -> Callable:
+    def dependency(
+        identity: Annotated[RequestIdentity, Depends(get_current_identity)],
+    ) -> RequestIdentity:
+        if identity.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        return identity
+
+    return dependency
+
+
+ManagerOrOwnerIdentity = Annotated[
+    RequestIdentity,
+    Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+]
