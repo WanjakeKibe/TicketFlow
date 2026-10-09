@@ -1,57 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from uuid import UUID
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
-from sqlalchemy.engine import Engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
 from app.api.v1.dependencies import get_api_key_identity
 from app.core.security import RequestIdentity, create_access_token
-from app.db.base import Base
-from app.db.session import get_db
-from app.main import app
 from app.models import ApiKey, User
-
-
-@pytest.fixture
-def engine() -> Iterator[Engine]:
-    test_engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(test_engine)
-    try:
-        yield test_engine
-    finally:
-        Base.metadata.drop_all(test_engine)
-        test_engine.dispose()
-
-
-@pytest.fixture
-def client(engine: Engine) -> Iterator[TestClient]:
-    def override_get_db() -> Iterator[Session]:
-        with Session(engine) as session:
-            yield session
-
-    app.dependency_overrides[get_db] = override_get_db
-    try:
-        with TestClient(app) as test_client:
-            yield test_client
-    finally:
-        app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def db_session(engine: Engine) -> Iterator[Session]:
-    with Session(engine) as session:
-        yield session
 
 
 def register_user(client: TestClient, email: str) -> dict:
