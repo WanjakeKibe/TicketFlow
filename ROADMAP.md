@@ -369,6 +369,33 @@ List responses must contain:
 
 Use a service entrypoint such as `update_ticket(company_id, ticket_id, patch, expected_version, actor)` so authorization and concurrency checks cannot be bypassed.
 
+### Phase 5 exit criteria
+
+Phase 5 is complete only when every gate below passes:
+
+- [x] `POST /api/v1/tickets` creates a ticket for an existing
+      company-scoped requester.
+- [x] Ticket creation accepts bearer users and active company API keys.
+- [x] Revoked API keys cannot create tickets.
+- [x] `GET /api/v1/tickets/{ticket_id}` returns only tickets in the
+      authenticated company.
+- [x] `GET /api/v1/tickets` supports page, page size, status, priority,
+      assignee, search, and deterministic sorting.
+- [x] `PATCH /api/v1/tickets/{ticket_id}` requires the expected ticket version
+      and returns `409` for stale updates.
+- [x] Managers and owners can update company tickets.
+- [x] Agents can update assigned tickets but cannot change assignment,
+      requester, priority, or category.
+- [x] Cross-company ticket IDs return `404`.
+- [x] Ticket API behavior is implemented through a service entrypoint so
+      tenant and authorization checks are not bypassed by route handlers.
+- [x] Focused Phase 5 tests pass with
+      `python -m pytest -q tests/test_auth.py tests/test_companies.py tests/test_tickets.py`
+      (`14 passed`, 1 existing deprecation warning).
+- [ ] Full backend tests pass with `python -m pytest -q` against PostgreSQL.
+      PostgreSQL verification remains pending when Docker Desktop is
+      unavailable.
+
 ## 8. Phase Six: Lifecycle, Comments, and Activity History
 
 Allowed status transitions:

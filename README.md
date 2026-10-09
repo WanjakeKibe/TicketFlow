@@ -9,8 +9,8 @@ when they change.
 
 ## Current Status
 
-The repository currently contains the backend foundation and the Phase 4
-company administration slice:
+The repository currently contains the backend foundation through the Phase 5
+ticket CRUD vertical slice:
 
 - FastAPI application and versioned API routing.
 - Environment-based application settings.
@@ -18,9 +18,11 @@ company administration slice:
 - Application and database health endpoints.
 - Authentication, tenant-bound identities, and API-key lifecycle support.
 - Tenant-scoped company retrieval and role-protected company user listing.
+- Tenant-scoped ticket creation, retrieval, filtering, pagination, and updates.
 - MVP requirements and implementation roadmap.
 
-Ticket CRUD, ticket lifecycle rules, and the frontend remain planned work. See
+Ticket lifecycle rules, comments, events, idempotency, and the frontend remain
+planned work. See
 [ROADMAP.md](ROADMAP.md) and
 [.docs/MVP-TECHNICAL-SPEC.md](.docs/MVP-TECHNICAL-SPEC.md) for the target scope.
 
@@ -86,6 +88,10 @@ development and restarts the server when backend files change.
 | `POST /api/v1/companies` | Register a company and owner       |
 | `GET /api/v1/companies/{company_id}` | Get the authenticated company |
 | `GET /api/v1/companies/{company_id}/users` | List company users for owners and managers |
+| `POST /api/v1/tickets` | Create a company ticket |
+| `GET /api/v1/tickets` | List company tickets with filters and pagination |
+| `GET /api/v1/tickets/{ticket_id}` | Get a company ticket |
+| `PATCH /api/v1/tickets/{ticket_id}` | Update a ticket with an expected version |
 | `GET /docs`             | Interactive Swagger documentation |
 | `GET /openapi.json`     | OpenAPI document                  |
 
@@ -171,10 +177,11 @@ Before handing work over:
 ## Handoff Notes
 
 The current implementation includes authentication, tenant-scoped company
-administration, and role checks. Ticket CRUD, ticket lifecycle rules,
-comments, activity events, and the frontend dashboard are not available yet.
-The full backend suite requires the local PostgreSQL service; the focused
-authentication and company suite can run with the SQLite test fixtures.
+administration, role checks, and ticket CRUD. Ticket creation requires an
+existing company-scoped `requester_id`. Ticket lifecycle rules, comments,
+activity events, idempotency, and the frontend dashboard are not available yet.
+The full backend suite requires the local PostgreSQL service; focused API tests
+can run with the SQLite test fixtures.
 
 ## Project Layout
 
