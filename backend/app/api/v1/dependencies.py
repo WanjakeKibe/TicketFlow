@@ -128,6 +128,18 @@ def require_roles(*allowed_roles: UserRole) -> Callable:
     return dependency
 
 
+def authorize_roles(
+    identity: RequestIdentity,
+    *allowed_roles: UserRole,
+) -> RequestIdentity:
+    if identity.role not in allowed_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
+    return identity
+
+
 ManagerOrOwnerIdentity = Annotated[
     RequestIdentity,
     Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),

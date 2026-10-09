@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.dependencies import (
     CurrentIdentity,
-    ManagerOrOwnerIdentity,
+    authorize_roles,
 )
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.models import UserRole
 from app.schemas.auth import AuthResponse, UserResponse
 from app.schemas.company import (
     CompanyResponse,
@@ -70,7 +71,7 @@ def get_company(
 @router.get("/{company_id}/users", response_model=CompanyUsersResponse)
 def get_company_users(
     company_id: UUID,
-    identity: ManagerOrOwnerIdentity,
+    identity: CurrentIdentity,
     db: Annotated[Session, Depends(get_db)],
 ) -> CompanyUsersResponse:
     company = get_company_for_identity(db, company_id, identity)
@@ -79,6 +80,7 @@ def get_company_users(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Company was not found",
         )
+    authorize_roles(identity, UserRole.OWNER, UserRole.MANAGER)
     users = list_company_users(db, company.id)
     return CompanyUsersResponse(
         items=[

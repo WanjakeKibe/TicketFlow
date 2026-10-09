@@ -62,13 +62,25 @@ def test_create_and_get_company(client: TestClient) -> None:
 
 def test_company_resources_are_not_visible_across_tenants(
     client: TestClient,
+    db_session: Session,
 ) -> None:
     company_a = create_company(client, "a@example.com")
     company_b = create_company(client, "b@example.com")
+    company_b_owner = db_session.get(
+        User,
+        UUID(company_b["user"]["id"]),
+    )
+    assert company_b_owner is not None
+    company_b_agent = create_company_user(
+        db_session,
+        company_b_owner.company_id,
+        "b-agent@example.com",
+        UserRole.AGENT,
+    )
 
     response = client.get(
         f"/api/v1/companies/{company_a['user']['company_id']}/users",
-        headers={"Authorization": f"Bearer {company_b['access_token']}"},
+        headers=auth_headers(company_b_agent),
     )
 
     assert response.status_code == 404
