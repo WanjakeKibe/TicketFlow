@@ -9,16 +9,19 @@ when they change.
 
 ## Current Status
 
-The repository currently contains the backend foundation:
+The repository currently contains the backend foundation and the Phase 4
+company administration slice:
 
 - FastAPI application and versioned API routing.
 - Environment-based application settings.
 - SQLAlchemy engine and session configuration.
 - Application and database health endpoints.
+- Authentication, tenant-bound identities, and API-key lifecycle support.
+- Tenant-scoped company retrieval and role-protected company user listing.
 - MVP requirements and implementation roadmap.
 
-Authentication, ticket models, authorization, and the frontend are planned
-work. See [ROADMAP.md](ROADMAP.md) and
+Ticket CRUD, ticket lifecycle rules, and the frontend remain planned work. See
+[ROADMAP.md](ROADMAP.md) and
 [.docs/MVP-TECHNICAL-SPEC.md](.docs/MVP-TECHNICAL-SPEC.md) for the target scope.
 
 ## Quick Start
@@ -80,6 +83,9 @@ development and restarts the server when backend files change.
 | `GET /api/v1/me` | Get the authenticated user                   |
 | `POST /api/v1/auth/api-keys` | Create an owner-managed API key     |
 | `DELETE /api/v1/auth/api-keys/{id}` | Revoke an API key              |
+| `POST /api/v1/companies` | Register a company and owner       |
+| `GET /api/v1/companies/{company_id}` | Get the authenticated company |
+| `GET /api/v1/companies/{company_id}/users` | List company users for owners and managers |
 | `GET /docs`             | Interactive Swagger documentation |
 | `GET /openapi.json`     | OpenAPI document                  |
 
@@ -118,8 +124,8 @@ cd backend
 python -m alembic upgrade head
 ```
 
-The initial revision is intentionally empty. Domain tables will be added with
-the Phase 2 data model.
+The current migrations create the Phase 2 domain tables. Run the migration
+command after starting PostgreSQL and before executing database-backed tests.
 
 ## Development Checks
 
@@ -130,6 +136,7 @@ python -m compileall -q app
 python -c "from app.main import app; print(sorted(app.openapi()['paths']))"
 python -m pytest -q
 python -m pytest -q tests/test_auth.py
+python -m pytest -q tests/test_auth.py tests/test_companies.py
 ```
 
 Run these checks before handing work to the other collaborator. Include any
@@ -163,12 +170,11 @@ Before handing work over:
 
 ## Handoff Notes
 
-The current implementation is only the backend foundation. The following are
-not available yet: authentication, users and companies, ticket CRUD, ticket
-lifecycle rules, comments, activity events, domain database tables, and the
-frontend dashboard. The initial migration and smoke tests exist, but they do
-not represent the complete MVP test suite. Do not treat the current health
-endpoints as evidence that PostgreSQL-backed features are complete.
+The current implementation includes authentication, tenant-scoped company
+administration, and role checks. Ticket CRUD, ticket lifecycle rules,
+comments, activity events, and the frontend dashboard are not available yet.
+The full backend suite requires the local PostgreSQL service; the focused
+authentication and company suite can run with the SQLite test fixtures.
 
 ## Project Layout
 

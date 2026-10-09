@@ -300,6 +300,31 @@ Authorization rules:
 
 Centralize these checks in reusable permission dependencies or service helpers. Do not duplicate role comparisons in route handlers.
 
+### Phase 4 exit criteria
+
+Phase 4 is complete only when every gate below passes:
+
+- [x] `POST /api/v1/companies` creates a company and owner atomically and
+      returns the owner access token.
+- [x] `GET /api/v1/companies/{company_id}` returns the authenticated company
+      and hides cross-company IDs with `404`.
+- [x] `GET /api/v1/companies/{company_id}/users` is tenant-scoped and returns
+      users in deterministic creation order.
+- [x] Owners and managers can list users in their company.
+- [x] Agents receive `403` for same-company user administration.
+- [x] Cross-company user-list requests return `404` before role evaluation.
+- [x] Owner-only API-key operations reject managers with `403`.
+- [x] Role checks are centralized in reusable dependency/service helpers.
+- [x] Focused Phase 4 tests pass with
+      `python -m pytest -q tests/test_auth.py tests/test_companies.py`
+      (`9 passed`, 1 existing deprecation warning).
+- [ ] Full backend tests pass with `python -m pytest -q` against PostgreSQL.
+      PostgreSQL was unavailable in the local Docker daemon during this
+      verification attempt.
+
+If the PostgreSQL gate is unavailable, Phase 4 remains pending final
+database-backed verification even when the focused suite passes.
+
 ## 7. Phase Five: Ticket CRUD Vertical Slice
 
 Implement:
