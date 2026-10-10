@@ -9,8 +9,8 @@ when they change.
 
 ## Current Status
 
-The repository currently contains the backend foundation through the Phase 5
-ticket CRUD vertical slice:
+The repository currently contains the backend foundation through the Phase 6
+ticket lifecycle, comments, and activity history slice:
 
 - FastAPI application and versioned API routing.
 - Environment-based application settings.
@@ -19,10 +19,11 @@ ticket CRUD vertical slice:
 - Authentication, tenant-bound identities, and API-key lifecycle support.
 - Tenant-scoped company retrieval and role-protected company user listing.
 - Tenant-scoped ticket creation, retrieval, filtering, pagination, and updates.
+- Controlled ticket lifecycle transitions, optimistic concurrency for comments,
+  and immutable ticket activity events.
 - MVP requirements and implementation roadmap.
 
-Ticket lifecycle rules, comments, events, idempotency, and the frontend remain
-planned work. See
+Idempotency and the frontend remain planned work. See
 [ROADMAP.md](ROADMAP.md) and
 [.docs/MVP-TECHNICAL-SPEC.md](.docs/MVP-TECHNICAL-SPEC.md) for the target scope.
 
@@ -92,6 +93,8 @@ development and restarts the server when backend files change.
 | `GET /api/v1/tickets` | List company tickets with filters and pagination |
 | `GET /api/v1/tickets/{ticket_id}` | Get a company ticket |
 | `PATCH /api/v1/tickets/{ticket_id}` | Update a ticket with an expected version |
+| `POST /api/v1/tickets/{ticket_id}/comments` | Add a ticket comment with an expected version |
+| `GET /api/v1/tickets/{ticket_id}/events` | Get immutable ticket activity history |
 | `GET /docs`             | Interactive Swagger documentation |
 | `GET /openapi.json`     | OpenAPI document                  |
 
@@ -177,9 +180,11 @@ Before handing work over:
 ## Handoff Notes
 
 The current implementation includes authentication, tenant-scoped company
-administration, role checks, and ticket CRUD. Ticket creation requires an
-existing company-scoped `requester_id`. Ticket lifecycle rules, comments,
-activity events, idempotency, and the frontend dashboard are not available yet.
+administration, role checks, ticket CRUD, lifecycle validation, comments, and
+immutable activity events. Ticket creation requires an existing company-scoped
+`requester_id`. Comment creation requires the current ticket `version` and
+increments it after the comment and event are persisted in one transaction.
+Idempotency and the frontend dashboard are not available yet.
 The full backend suite requires the local PostgreSQL service; focused API tests
 can run with the SQLite test fixtures.
 

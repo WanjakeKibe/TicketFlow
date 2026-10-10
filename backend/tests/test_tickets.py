@@ -275,3 +275,87 @@ def test_cross_company_ticket_ids_return_not_found(
     )
 
     assert response.status_code == 404
+
+
+def test_ticket_lifecycle_comments_and_events(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    registration = register_owner(client, "lifecycle@example.com")
+    owner = db_session.scalar(
+        select(User).where(User.email == "lifecycle@example.com")
+    )
+    assert owner is not None
+    customer = add_customer(db_session, owner.company_id)
+    headers = bearer(owner)
+    ticket = client.post(
+        "/api/v1/tickets",
+        headers=headers,
+        json=ticket_payload(customer.id),
+    ).json()
+
+    assigned = client.patch(
+        f"/api/v1/tickets/{ticket['id']}",
+        headers=headers,
+        json={"expected_version": 1, "status": "RESOLVED"},
+    )
+    assert assigned.status_code == 400
+
+    in_progress = client.patch(
+        f"/api/v1/tickets/{ticket['id']}",
+        headers=headers,
+        json={"expected_version": 1, "status": "IN_PROGRESS"},
+    )
+    assert in_progress.status_code == 200
+    assert in_progress.json()["version"] == 2
+
+    comment = client.post(
+        f"/api/v1/tickets/{ticket['id']}/comments",
+        headers=headers,
+        json={
+            "expected_version": 2,
+            "body": "Investigating the issue.",
+            "is_internal": True,
+        },
+    )
+    assert comment.status_code == 201
+    assert comment.json()["body"] == "Investigating the issue."
+
+    events = client.get(
+        f"/api/v1/tickets/{ticket['id']}/events",
+        headers=headers,
+    )
+    assert events.status_code == 200
+    assert [event["event_type"] for event in events.json()] == [
+        "CREATED",
+        "STATUS_CHANGED",
+        "COMMENT_ADDED",
+    ]
+    assert events.json()[1]["previous_value"] == "OPEN"
+    assert events.json()[1]["new_value"] == "IN_PROGRESS"
+
+
+def test_comment_requires_current_ticket_version(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    registration = register_owner(client, "comment-conflict@example.com")
+    owner = db_session.scalar(
+        select(User).where(User.email == "comment-conflict@example.com")
+    )
+    assert owner is not None
+    customer = add_customer(db_session, owner.company_id)
+    headers = bearer(owner)
+    ticket = client.post(
+        "/api/v1/tickets",
+        headers=headers,
+        json=ticket_payload(customer.id),
+    ).json()
+
+    response = client.post(
+        f"/api/v1/tickets/{ticket['id']}/comments",
+        headers=headers,
+        json={"expected_version": 99, "body": "Stale comment"},
+    )
+
+    assert response.status_code == 409

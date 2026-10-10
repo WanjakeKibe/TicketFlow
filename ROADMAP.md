@@ -427,6 +427,26 @@ Implement:
 
 Events must be created in the same transaction as the ticket mutation and must not be editable or deletable through the API.
 
+### Phase 6 exit criteria
+
+Phase 6 is complete only when every gate below passes:
+
+- [x] Ticket updates enforce the allowed lifecycle transitions and terminal
+      `CLOSED` state.
+- [x] Status, assignment, priority, and category changes create immutable
+      ticket events in the same transaction as the update.
+- [x] `POST /api/v1/tickets/{ticket_id}/comments` requires the expected ticket
+      version, persists the comment and event atomically, and increments the
+      ticket version.
+- [x] `GET /api/v1/tickets/{ticket_id}/events` is tenant-scoped and returns
+      immutable activity history.
+- [x] Cross-company ticket IDs return `404` for comments and events.
+- [x] Focused ticket tests pass with
+      `python -m pytest -q tests/test_tickets.py`.
+- [ ] Full backend tests pass with `python -m pytest -q` against PostgreSQL.
+      PostgreSQL verification remains pending when Docker Desktop is
+      unavailable.
+
 ## 9. Phase Seven: Idempotency and Concurrency
 
 Ticket creation accepts the `Idempotency-Key` header.

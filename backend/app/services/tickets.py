@@ -7,9 +7,17 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.security import RequestIdentity
-from app.models import Customer, Ticket, User, UserRole
+from app.models import (
+    Comment,
+    Customer,
+    Ticket,
+    TicketEvent,
+    TicketEventType,
+    User,
+    UserRole,
+)
 from app.models.enums import TicketPriority, TicketStatus
-from app.schemas.tickets import CreateTicketRequest, UpdateTicketRequest
+from app.schemas.tickets import CreateCommentRequest, CreateTicketRequest, UpdateTicketRequest
 
 
 class TicketNotFoundError(Exception):
@@ -26,6 +34,43 @@ class TicketConflictError(Exception):
 
 class TicketReferenceNotFoundError(Exception):
     pass
+
+
+class TicketTransitionError(Exception):
+    pass
+
+
+ALLOWED_STATUS_TRANSITIONS = {
+    TicketStatus.OPEN: {TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS},
+    TicketStatus.ASSIGNED: {TicketStatus.IN_PROGRESS},
+    TicketStatus.IN_PROGRESS: {TicketStatus.RESOLVED},
+    TicketStatus.RESOLVED: {TicketStatus.CLOSED, TicketStatus.OPEN},
+    TicketStatus.CLOSED: set(),
+}
+
+
+def _add_event(
+    db: Session,
+    ticket: Ticket,
+    actor: RequestIdentity,
+    event_type: TicketEventType,
+    previous_value: str | None,
+    new_value: str | None,
+) -> None:
+    db.add(
+        TicketEvent(
+            company_id=ticket.company_id,
+            ticket_id=ticket.id,
+            actor_id=actor.principal_id if actor.principal_type == "user" else None,
+            event_type=event_type,
+            previous_value=previous_value,
+            new_value=new_value,
+        )
+    )
+
+
+def _value(value: object) -> str | None:
+    return str(value) if value is not None else None
 
 
 def _get_customer(
@@ -91,6 +136,15 @@ def create_ticket(
         assignee_id=request.assignee_id,
     )
     db.add(ticket)
+    db.flush()
+    _add_event(
+        db,
+        ticket,
+        actor,
+        TicketEventType.CREATED,
+        None,
+        ticket.status.value,
+    )
     db.commit()
     db.refresh(ticket)
     return ticket
@@ -187,6 +241,49 @@ def update_ticket(
         _get_customer(db, company_id, request.requester_id)
     if "assignee_id" in fields and request.assignee_id is not None:
         _get_assignee(db, company_id, request.assignee_id)
+    if "status" in fields and request.status is not None:
+        if request.status != ticket.status and request.status not in ALLOWED_STATUS_TRANSITIONS[ticket.status]:
+            raise TicketTransitionError(
+                f"Cannot transition ticket from {ticket.status.value} to {request.status.value}"
+            )
+        if request.status != ticket.status:
+            _add_event(
+                db,
+                ticket,
+                actor,
+                TicketEventType.STATUS_CHANGED,
+                ticket.status.value,
+                request.status.value,
+            )
+    if "assignee_id" in fields and request.assignee_id != ticket.assignee_id:
+        _add_event(
+            db,
+            ticket,
+            actor,
+            TicketEventType.ASSIGNMENT_CHANGED,
+            _value(ticket.assignee_id),
+            _value(request.assignee_id),
+        )
+    if "priority" in fields and request.priority is not None and request.priority != ticket.priority:
+        _add_event(
+            db,
+            ticket,
+            actor,
+            TicketEventType.PRIORITY_CHANGED,
+            ticket.priority.value,
+            request.priority.value,
+        )
+    if "category" in fields:
+        new_category = request.category.strip() if request.category else None
+        if new_category != ticket.category:
+            _add_event(
+                db,
+                ticket,
+                actor,
+                TicketEventType.CATEGORY_CHANGED,
+                ticket.category,
+                new_category,
+            )
     if "title" in fields:
         ticket.title = request.title.strip() if request.title else ticket.title
     if "description" in fields:
@@ -205,3 +302,67 @@ def update_ticket(
     db.commit()
     db.refresh(ticket)
     return ticket
+
+
+def add_comment(
+    db: Session,
+    company_id: UUID,
+    ticket_id: UUID,
+    request: CreateCommentRequest,
+    actor: RequestIdentity,
+) -> Comment:
+    if actor.principal_type != "user":
+        raise TicketForbiddenError("Only users can add comments")
+    ticket = db.scalar(
+        select(Ticket)
+        .where(Ticket.id == ticket_id, Ticket.company_id == company_id)
+        .with_for_update()
+    )
+    if ticket is None:
+        raise TicketNotFoundError("Ticket was not found")
+    if ticket.version != request.expected_version:
+        raise TicketConflictError("Ticket version is stale")
+    comment = Comment(
+        company_id=company_id,
+        ticket_id=ticket.id,
+        author_id=actor.principal_id,
+        body=request.body.strip(),
+        is_internal=request.is_internal,
+    )
+    db.add(comment)
+    db.flush()
+    _add_event(
+        db,
+        ticket,
+        actor,
+        TicketEventType.COMMENT_ADDED,
+        None,
+        comment.id.hex,
+    )
+    ticket.version += 1
+    db.commit()
+    db.refresh(comment)
+    return comment
+
+
+def list_ticket_events(
+    db: Session,
+    company_id: UUID,
+    ticket_id: UUID,
+) -> Sequence[TicketEvent]:
+    ticket = db.scalar(
+        select(Ticket.id).where(
+            Ticket.id == ticket_id,
+            Ticket.company_id == company_id,
+        )
+    )
+    if ticket is None:
+        raise TicketNotFoundError("Ticket was not found")
+    return db.scalars(
+        select(TicketEvent)
+        .where(
+            TicketEvent.ticket_id == ticket_id,
+            TicketEvent.company_id == company_id,
+        )
+        .order_by(TicketEvent.occurred_at.asc(), TicketEvent.id.asc())
+    ).all()

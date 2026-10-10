@@ -10,8 +10,11 @@ from app.api.v1.dependencies import AuthenticatedIdentity
 from app.db.session import get_db
 from app.models.enums import TicketPriority, TicketStatus
 from app.schemas.tickets import (
+    CommentResponse,
+    CreateCommentRequest,
     CreateTicketRequest,
     TicketListResponse,
+    TicketEventResponse,
     TicketResponse,
     UpdateTicketRequest,
 )
@@ -20,8 +23,11 @@ from app.services.tickets import (
     TicketForbiddenError,
     TicketNotFoundError,
     TicketReferenceNotFoundError,
+    TicketTransitionError,
+    add_comment,
     create_ticket,
     get_ticket,
+    list_ticket_events,
     list_tickets,
     update_ticket,
 )
@@ -39,6 +45,14 @@ def _ticket_not_found() -> HTTPException:
 
 def _to_response(ticket) -> TicketResponse:
     return TicketResponse.model_validate(ticket, from_attributes=True)
+
+
+def _to_comment_response(comment) -> CommentResponse:
+    return CommentResponse.model_validate(comment, from_attributes=True)
+
+
+def _to_event_response(event) -> TicketEventResponse:
+    return TicketEventResponse.model_validate(event, from_attributes=True)
 
 
 @router.post("", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
@@ -138,4 +152,56 @@ def update(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(error),
         ) from None
+    except TicketTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from None
     return _to_response(ticket)
+
+
+@router.post(
+    "/{ticket_id}/comments",
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def comment(
+    ticket_id: UUID,
+    request: CreateCommentRequest,
+    identity: AuthenticatedIdentity,
+    db: Annotated[Session, Depends(get_db)],
+) -> CommentResponse:
+    try:
+        return _to_comment_response(
+            add_comment(db, identity.company_id, ticket_id, request, identity)
+        )
+    except TicketNotFoundError:
+        raise _ticket_not_found() from None
+    except TicketForbiddenError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from None
+    except TicketConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from None
+
+
+@router.get(
+    "/{ticket_id}/events",
+    response_model=list[TicketEventResponse],
+)
+def events(
+    ticket_id: UUID,
+    identity: AuthenticatedIdentity,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[TicketEventResponse]:
+    try:
+        return [
+            _to_event_response(event)
+            for event in list_ticket_events(db, identity.company_id, ticket_id)
+        ]
+    except TicketNotFoundError:
+        raise _ticket_not_found() from None
