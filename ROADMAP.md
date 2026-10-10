@@ -459,6 +459,21 @@ Required behavior:
 - Concurrent duplicate requests create only one ticket.
 - Stored responses preserve the original status and response body.
 
+### Phase 7 exit criteria
+
+Phase 7 is complete only when every gate below passes:
+
+- [x] Equivalent ticket creation requests replay the stored response for the
+      same company and idempotency key.
+- [x] Reusing a key with a different request returns `409`.
+- [x] Idempotency keys are isolated by company.
+- [x] Stored idempotency records expire after 24 hours.
+- [x] Ticket creation handles duplicate-key races without creating duplicate
+      tickets.
+- [x] Focused ticket tests cover replay, conflicts, and cross-company keys.
+- [ ] PostgreSQL concurrency verification remains pending when Docker Desktop is
+      unavailable.
+
 For updates, use an integer ticket version. Clients submit the version they read; updates with a stale version return a conflict instead of silently overwriting newer data.
 
 ## 10. Phase Eight: Error Contract and OpenAPI

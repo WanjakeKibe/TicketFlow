@@ -9,8 +9,8 @@ when they change.
 
 ## Current Status
 
-The repository currently contains the backend foundation through the Phase 6
-ticket lifecycle, comments, and activity history slice:
+The repository currently contains the backend foundation through the Phase 7
+idempotency and concurrency slice:
 
 - FastAPI application and versioned API routing.
 - Environment-based application settings.
@@ -21,9 +21,10 @@ ticket lifecycle, comments, and activity history slice:
 - Tenant-scoped ticket creation, retrieval, filtering, pagination, and updates.
 - Controlled ticket lifecycle transitions, optimistic concurrency for comments,
   and immutable ticket activity events.
+- Company-scoped ticket creation idempotency with replay and conflict handling.
 - MVP requirements and implementation roadmap.
 
-Idempotency and the frontend remain planned work. See
+The frontend remains planned work. See
 [ROADMAP.md](ROADMAP.md) and
 [.docs/MVP-TECHNICAL-SPEC.md](.docs/MVP-TECHNICAL-SPEC.md) for the target scope.
 
@@ -89,7 +90,7 @@ development and restarts the server when backend files change.
 | `POST /api/v1/companies` | Register a company and owner       |
 | `GET /api/v1/companies/{company_id}` | Get the authenticated company |
 | `GET /api/v1/companies/{company_id}/users` | List company users for owners and managers |
-| `POST /api/v1/tickets` | Create a company ticket |
+| `POST /api/v1/tickets` | Create a company ticket; optionally replay with `Idempotency-Key` |
 | `GET /api/v1/tickets` | List company tickets with filters and pagination |
 | `GET /api/v1/tickets/{ticket_id}` | Get a company ticket |
 | `PATCH /api/v1/tickets/{ticket_id}` | Update a ticket with an expected version |

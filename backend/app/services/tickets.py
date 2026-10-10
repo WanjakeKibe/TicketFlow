@@ -1,23 +1,34 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import timedelta, timezone
+import hashlib
+import json
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import RequestIdentity
 from app.models import (
     Comment,
     Customer,
+    IdempotencyKey,
     Ticket,
     TicketEvent,
     TicketEventType,
     User,
     UserRole,
 )
+from app.models.common import utc_now
 from app.models.enums import TicketPriority, TicketStatus
-from app.schemas.tickets import CreateCommentRequest, CreateTicketRequest, UpdateTicketRequest
+from app.schemas.tickets import (
+    CreateCommentRequest,
+    CreateTicketRequest,
+    TicketResponse,
+    UpdateTicketRequest,
+)
 
 
 class TicketNotFoundError(Exception):
@@ -40,6 +51,10 @@ class TicketTransitionError(Exception):
     pass
 
 
+class IdempotencyConflictError(Exception):
+    pass
+
+
 ALLOWED_STATUS_TRANSITIONS = {
     TicketStatus.OPEN: {TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS},
     TicketStatus.ASSIGNED: {TicketStatus.IN_PROGRESS},
@@ -47,6 +62,7 @@ ALLOWED_STATUS_TRANSITIONS = {
     TicketStatus.RESOLVED: {TicketStatus.CLOSED, TicketStatus.OPEN},
     TicketStatus.CLOSED: set(),
 }
+IDEMPOTENCY_TTL = timedelta(hours=24)
 
 
 def _add_event(
@@ -71,6 +87,61 @@ def _add_event(
 
 def _value(value: object) -> str | None:
     return str(value) if value is not None else None
+
+
+def _request_hash(request: CreateTicketRequest) -> str:
+    payload = request.model_dump(mode="json")
+    payload["title"] = payload["title"].strip()
+    payload["category"] = payload["category"].strip() if payload["category"] else None
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _stored_response(ticket: Ticket) -> dict:
+    return TicketResponse.model_validate(ticket, from_attributes=True).model_dump(
+        mode="json"
+    )
+
+
+def _ticket_from_stored_response(
+    db: Session,
+    company_id: UUID,
+    response_body: dict,
+) -> Ticket:
+    ticket_id = response_body.get("id")
+    if not isinstance(ticket_id, str):
+        raise TicketNotFoundError("Stored idempotent ticket was not found")
+    try:
+        return get_ticket(db, company_id, UUID(ticket_id))
+    except ValueError:
+        raise TicketNotFoundError("Stored idempotent ticket was not found") from None
+
+
+def _get_idempotency_record(
+    db: Session,
+    company_id: UUID,
+    key: str,
+    request_hash: str,
+) -> dict | None:
+    record = db.scalar(
+        select(IdempotencyKey).where(
+            IdempotencyKey.company_id == company_id,
+            IdempotencyKey.key == key,
+        )
+    )
+    if record is None:
+        return None
+    expires_at = record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= utc_now():
+        db.delete(record)
+        db.flush()
+        return None
+    if record.request_hash != request_hash:
+        raise IdempotencyConflictError("Idempotency key was used with a different request")
+    return record.response_body
 
 
 def _get_customer(
@@ -118,7 +189,16 @@ def create_ticket(
     company_id: UUID,
     request: CreateTicketRequest,
     actor: RequestIdentity,
-) -> Ticket:
+    idempotency_key: str | None = None,
+) -> tuple[Ticket, dict]:
+    request_hash = _request_hash(request) if idempotency_key else None
+    if idempotency_key and request_hash:
+        stored_response = _get_idempotency_record(
+            db, company_id, idempotency_key, request_hash
+        )
+        if stored_response is not None:
+            ticket = _ticket_from_stored_response(db, company_id, stored_response)
+            return ticket, stored_response
     _get_customer(db, company_id, request.requester_id)
     if request.assignee_id is not None:
         if not _can_manage_ticket(actor):
@@ -145,9 +225,32 @@ def create_ticket(
         None,
         ticket.status.value,
     )
+    response_body = _stored_response(ticket)
+    if idempotency_key and request_hash:
+        record = IdempotencyKey(
+            company_id=company_id,
+            key=idempotency_key,
+            request_hash=request_hash,
+            response_status=201,
+            response_body=response_body,
+            ticket_id=ticket.id,
+            expires_at=utc_now() + IDEMPOTENCY_TTL,
+        )
+        try:
+            with db.begin_nested():
+                db.add(record)
+                db.flush()
+        except IntegrityError:
+            db.rollback()
+            existing = _get_idempotency_record(
+                db, company_id, idempotency_key, request_hash
+            )
+            if existing is None:
+                raise
+            return _ticket_from_stored_response(db, company_id, existing), existing
     db.commit()
     db.refresh(ticket)
-    return ticket
+    return ticket, response_body
 
 
 def get_ticket(

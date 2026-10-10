@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
-from app.models import Customer, User, UserRole
+from app.models import Customer, Ticket, User, UserRole
 from app.services.auth import issue_user_access_token
 
 
@@ -359,3 +359,65 @@ def test_comment_requires_current_ticket_version(
     )
 
     assert response.status_code == 409
+
+
+def test_ticket_creation_replays_idempotent_response_and_rejects_changed_request(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    registration = register_owner(client, "idempotency@example.com")
+    owner = db_session.scalar(
+        select(User).where(User.email == "idempotency@example.com")
+    )
+    assert owner is not None
+    customer = add_customer(db_session, owner.company_id)
+    headers = {**bearer(owner), "Idempotency-Key": "ticket-create-1"}
+    payload = ticket_payload(customer.id)
+
+    first = client.post("/api/v1/tickets", headers=headers, json=payload)
+    replay = client.post("/api/v1/tickets", headers=headers, json=payload)
+    changed = client.post(
+        "/api/v1/tickets",
+        headers=headers,
+        json={**payload, "title": "Different request"},
+    )
+
+    assert first.status_code == 201
+    assert replay.status_code == 201
+    assert replay.json() == first.json()
+    assert changed.status_code == 409
+    assert db_session.query(Ticket).count() == 1
+
+
+def test_idempotency_keys_are_scoped_to_company(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    register_owner(client, "first-company@example.com")
+    register_owner(client, "second-company@example.com")
+    first_owner = db_session.scalar(
+        select(User).where(User.email == "first-company@example.com")
+    )
+    second_owner = db_session.scalar(
+        select(User).where(User.email == "second-company@example.com")
+    )
+    assert first_owner is not None
+    assert second_owner is not None
+    first_customer = add_customer(db_session, first_owner.company_id)
+    second_customer = add_customer(db_session, second_owner.company_id)
+    key = "shared-company-key"
+
+    first = client.post(
+        "/api/v1/tickets",
+        headers={**bearer(first_owner), "Idempotency-Key": key},
+        json=ticket_payload(first_customer.id),
+    )
+    second = client.post(
+        "/api/v1/tickets",
+        headers={**bearer(second_owner), "Idempotency-Key": key},
+        json=ticket_payload(second_customer.id),
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]

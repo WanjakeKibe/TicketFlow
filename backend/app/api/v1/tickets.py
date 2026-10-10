@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.v1.dependencies import AuthenticatedIdentity
@@ -21,6 +22,7 @@ from app.schemas.tickets import (
 from app.services.tickets import (
     TicketConflictError,
     TicketForbiddenError,
+    IdempotencyConflictError,
     TicketNotFoundError,
     TicketReferenceNotFoundError,
     TicketTransitionError,
@@ -60,9 +62,15 @@ def create(
     request: CreateTicketRequest,
     identity: AuthenticatedIdentity,
     db: Annotated[Session, Depends(get_db)],
-) -> TicketResponse:
+    idempotency_key: Annotated[
+        str | None,
+        Header(alias="Idempotency-Key", max_length=255),
+    ] = None,
+) -> TicketResponse | JSONResponse:
     try:
-        ticket = create_ticket(db, identity.company_id, request, identity)
+        ticket, response_body = create_ticket(
+            db, identity.company_id, request, identity, idempotency_key
+        )
     except TicketForbiddenError as error:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -73,6 +81,13 @@ def create(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from None
+    except IdempotencyConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from None
+    if idempotency_key:
+        return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_body)
     return _to_response(ticket)
 
 
