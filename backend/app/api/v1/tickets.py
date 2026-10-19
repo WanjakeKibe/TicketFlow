@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.v1.dependencies import AuthenticatedIdentity
+from app.core.api_errors import ApiError, api_error, documented_errors
 from app.db.session import get_db
 from app.models.enums import TicketPriority, TicketStatus
 from app.schemas.tickets import (
@@ -35,13 +36,16 @@ from app.services.tickets import (
 )
 
 
-router = APIRouter(prefix="/tickets", tags=["tickets"])
+router = APIRouter(
+    prefix="/tickets",
+    tags=["tickets"],
+    responses=documented_errors(400, 401, 403, 404, 409, 422, 500),
+)
 
 
-def _ticket_not_found() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Ticket was not found",
+def _ticket_not_found() -> ApiError:
+    return api_error(
+        status.HTTP_404_NOT_FOUND, "RESOURCE_NOT_FOUND", "Ticket was not found"
     )
 
 
@@ -72,19 +76,16 @@ def create(
             db, identity.company_id, request, identity, idempotency_key
         )
     except TicketForbiddenError as error:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_403_FORBIDDEN, "AUTHORIZATION_FAILED", str(error)
         ) from None
     except TicketReferenceNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_404_NOT_FOUND, "RESOURCE_NOT_FOUND", str(error)
         ) from None
     except IdempotencyConflictError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_409_CONFLICT, "IDEMPOTENCY_CONFLICT", str(error)
         ) from None
     if idempotency_key:
         return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_body)
@@ -95,15 +96,27 @@ def create(
 def list_all(
     identity: AuthenticatedIdentity,
     db: Annotated[Session, Depends(get_db)],
-    page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    page: Annotated[
+        int, Query(ge=1, description="1-based page number.", examples=[1])
+    ] = 1,
+    page_size: Annotated[
+        int,
+        Query(ge=1, le=100, description="Number of tickets per page.", examples=[20]),
+    ] = 20,
     status_filter: Annotated[
         TicketStatus | None,
-        Query(alias="status"),
+        Query(alias="status", description="Filter tickets by lifecycle status."),
     ] = None,
-    priority: TicketPriority | None = None,
-    assignee_id: UUID | None = None,
-    search: Annotated[str | None, Query(max_length=255)] = None,
+    priority: Annotated[
+        TicketPriority | None, Query(description="Filter tickets by priority.")
+    ] = None,
+    assignee_id: Annotated[
+        UUID | None, Query(description="Filter tickets assigned to this user.")
+    ] = None,
+    search: Annotated[
+        str | None,
+        Query(max_length=255, description="Search ticket titles and descriptions."),
+    ] = None,
 ) -> TicketListResponse:
     tickets, total = list_tickets(
         db,
@@ -153,24 +166,20 @@ def update(
     except TicketNotFoundError:
         raise _ticket_not_found() from None
     except TicketForbiddenError as error:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_403_FORBIDDEN, "AUTHORIZATION_FAILED", str(error)
         ) from None
     except TicketReferenceNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_404_NOT_FOUND, "RESOURCE_NOT_FOUND", str(error)
         ) from None
     except TicketConflictError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_409_CONFLICT, "STALE_VERSION", str(error)
         ) from None
     except TicketTransitionError as error:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_400_BAD_REQUEST, "INVALID_TICKET_TRANSITION", str(error)
         ) from None
     return _to_response(ticket)
 
@@ -193,14 +202,12 @@ def comment(
     except TicketNotFoundError:
         raise _ticket_not_found() from None
     except TicketForbiddenError as error:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_403_FORBIDDEN, "AUTHORIZATION_FAILED", str(error)
         ) from None
     except TicketConflictError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(error),
+        raise api_error(
+            status.HTTP_409_CONFLICT, "STALE_VERSION", str(error)
         ) from None
 
 

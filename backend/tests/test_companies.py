@@ -114,6 +114,7 @@ def test_owner_and_manager_can_list_users_but_agents_cannot(
     assert owner_response.status_code == 200
     assert manager_response.status_code == 200
     assert agent_response.status_code == 403
+    assert agent_response.json()["error"]["code"] == "AUTHORIZATION_FAILED"
     assert owner_response.json()["total"] == 3
     assert {user["role"] for user in manager_response.json()["items"]} == {
         "OWNER",

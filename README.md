@@ -9,8 +9,8 @@ when they change.
 
 ## Current Status
 
-The repository currently contains the backend foundation through the Phase 7
-idempotency and concurrency slice:
+The backend foundation includes the Phase 8 error contract and OpenAPI
+implementation. Full-suite PostgreSQL verification remains pending:
 
 - FastAPI application and versioned API routing.
 - Environment-based application settings.
@@ -22,6 +22,8 @@ idempotency and concurrency slice:
 - Controlled ticket lifecycle transitions, optimistic concurrency for comments,
   and immutable ticket activity events.
 - Company-scoped ticket creation idempotency with replay and conflict handling.
+- A shared API error response contract and documented OpenAPI request, response,
+  authentication, error, pagination, filter, and example schemas.
 - MVP requirements and implementation roadmap.
 
 The frontend remains planned work. See
@@ -98,6 +100,25 @@ development and restarts the server when backend files change.
 | `GET /api/v1/tickets/{ticket_id}/events` | Get immutable ticket activity history |
 | `GET /docs`             | Interactive Swagger documentation |
 | `GET /openapi.json`     | OpenAPI document                  |
+
+## API Errors
+
+API errors use a consistent response body:
+
+```json
+{
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "Ticket was not found"
+  }
+}
+```
+
+Error codes distinguish authentication and authorization failures, request
+validation, missing resources, invalid ticket transitions, stale ticket
+versions, idempotency conflicts, revoked API keys, and unavailable services.
+The generated OpenAPI document includes error response schemas and examples;
+view it at `/docs` or `/openapi.json`.
 
 ## Configuration
 
@@ -185,7 +206,8 @@ administration, role checks, ticket CRUD, lifecycle validation, comments, and
 immutable activity events. Ticket creation requires an existing company-scoped
 `requester_id`. Comment creation requires the current ticket `version` and
 increments it after the comment and event are persisted in one transaction.
-Idempotency and the frontend dashboard are not available yet.
+Idempotency and standardized API errors are implemented. The frontend dashboard
+is not available yet.
 The full backend suite requires the local PostgreSQL service; focused API tests
 can run with the SQLite test fixtures.
 

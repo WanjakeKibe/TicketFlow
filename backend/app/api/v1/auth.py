@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.api.v1.dependencies import (
     OwnerIdentity,
     authentication_error,
 )
+from app.core.api_errors import api_error, documented_errors
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import User
@@ -35,8 +36,15 @@ from app.services.auth import (
 )
 
 
-router = APIRouter(prefix="/auth", tags=["authentication"])
-me_router = APIRouter(tags=["authentication"])
+router = APIRouter(
+    prefix="/auth",
+    tags=["authentication"],
+    responses=documented_errors(401, 403, 404, 409, 422, 500),
+)
+me_router = APIRouter(
+    tags=["authentication"],
+    responses=documented_errors(401, 500),
+)
 
 
 @router.post(
@@ -52,9 +60,8 @@ def register(
         user = register_company_owner(db, request)
     except IntegrityError:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Unable to create company",
+        raise api_error(
+            status.HTTP_409_CONFLICT, "RESOURCE_CONFLICT", "Unable to create company"
         ) from None
 
     settings = get_settings()
@@ -138,9 +145,8 @@ def revoke_api_key(
         api_key_id=api_key_id,
     )
     if api_key is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key was not found",
+        raise api_error(
+            status.HTTP_404_NOT_FOUND, "RESOURCE_NOT_FOUND", "API key was not found"
         )
     return ApiKeyRevocationResponse(
         id=api_key.id,

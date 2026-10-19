@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.api.v1.dependencies import (
     CurrentIdentity,
     authorize_roles,
 )
+from app.core.api_errors import api_error, documented_errors
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import UserRole
@@ -24,7 +25,11 @@ from app.services.auth import issue_user_access_token, register_company_owner
 from app.services.companies import get_company_for_identity, list_company_users
 
 
-router = APIRouter(prefix="/companies", tags=["companies"])
+router = APIRouter(
+    prefix="/companies",
+    tags=["companies"],
+    responses=documented_errors(401, 403, 404, 409, 422, 500),
+)
 
 
 @router.post(
@@ -40,9 +45,8 @@ def create_company(
         owner = register_company_owner(db, request)
     except IntegrityError:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Unable to create company",
+        raise api_error(
+            status.HTTP_409_CONFLICT, "RESOURCE_CONFLICT", "Unable to create company"
         ) from None
 
     settings = get_settings()
@@ -61,9 +65,8 @@ def get_company(
 ) -> CompanyResponse:
     company = get_company_for_identity(db, company_id, identity)
     if company is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company was not found",
+        raise api_error(
+            status.HTTP_404_NOT_FOUND, "RESOURCE_NOT_FOUND", "Company was not found"
         )
     return CompanyResponse.model_validate(company, from_attributes=True)
 
@@ -76,9 +79,8 @@ def get_company_users(
 ) -> CompanyUsersResponse:
     company = get_company_for_identity(db, company_id, identity)
     if company is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company was not found",
+        raise api_error(
+            status.HTTP_404_NOT_FOUND, "RESOURCE_NOT_FOUND", "Company was not found"
         )
     authorize_roles(identity, UserRole.OWNER, UserRole.MANAGER)
     users = list_company_users(db, company.id)

@@ -3,10 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CreateApiKeyRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"name": "Ticket intake"}]}
+    )
+
     name: str = Field(min_length=1, max_length=100)
 
     @field_validator("name")

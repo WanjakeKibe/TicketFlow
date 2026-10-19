@@ -2,12 +2,24 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.enums import UserRole
 
 
 class RegisterRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "company_name": "Example Support",
+                    "email": "owner@example.com",
+                    "password": "correct horse battery staple"
+                }
+            ]
+        }
+    )
+
     company_name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
@@ -22,6 +34,14 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"email": "owner@example.com", "password": "your-password"}
+            ]
+        }
+    )
+
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
 

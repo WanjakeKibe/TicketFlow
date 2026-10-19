@@ -246,9 +246,11 @@ def test_ticket_updates_enforce_roles_and_expected_version(
     assert agent_update.status_code == 200
     assert agent_update.json()["version"] == 2
     assert agent_restricted.status_code == 403
+    assert agent_restricted.json()["error"]["code"] == "AUTHORIZATION_FAILED"
     assert manager_update.status_code == 200
     assert manager_update.json()["version"] == 3
     assert stale_update.status_code == 409
+    assert stale_update.json()["error"]["code"] == "STALE_VERSION"
 
 
 def test_cross_company_ticket_ids_return_not_found(
@@ -275,6 +277,7 @@ def test_cross_company_ticket_ids_return_not_found(
     )
 
     assert response.status_code == 404
+    assert response.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
 
 
 def test_ticket_lifecycle_comments_and_events(
@@ -300,6 +303,7 @@ def test_ticket_lifecycle_comments_and_events(
         json={"expected_version": 1, "status": "RESOLVED"},
     )
     assert assigned.status_code == 400
+    assert assigned.json()["error"]["code"] == "INVALID_TICKET_TRANSITION"
 
     in_progress = client.patch(
         f"/api/v1/tickets/{ticket['id']}",
@@ -359,6 +363,7 @@ def test_comment_requires_current_ticket_version(
     )
 
     assert response.status_code == 409
+    assert response.json()["error"]["code"] == "STALE_VERSION"
 
 
 def test_ticket_creation_replays_idempotent_response_and_rejects_changed_request(
@@ -386,6 +391,7 @@ def test_ticket_creation_replays_idempotent_response_and_rejects_changed_request
     assert replay.status_code == 201
     assert replay.json() == first.json()
     assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
     assert db_session.query(Ticket).count() == 1
 
 

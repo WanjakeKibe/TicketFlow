@@ -10,6 +10,7 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.api_errors import api_error
 from app.core.security import (
     RequestIdentity,
     decode_access_token,
@@ -25,9 +26,10 @@ api_key_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def authentication_error() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials",
+    return api_error(
+        status.HTTP_401_UNAUTHORIZED,
+        "AUTHENTICATION_FAILED",
+        "Invalid authentication credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -83,12 +85,15 @@ def get_api_key_identity(
         raise authentication_error() from None
 
     stored_key = db.scalar(select(ApiKey).where(ApiKey.id == api_key_id))
-    if (
-        stored_key is None
-        or stored_key.revoked_at is not None
-        or not verify_api_key(api_key, stored_key.key_hash)
-    ):
+    if stored_key is None or not verify_api_key(api_key, stored_key.key_hash):
         raise authentication_error()
+    if stored_key.revoked_at is not None:
+        raise api_error(
+            status.HTTP_401_UNAUTHORIZED,
+            "API_KEY_REVOKED",
+            "API key has been revoked",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
 
     stored_key.last_used_at = utc_now()
     db.commit()
@@ -123,9 +128,10 @@ AuthenticatedIdentity = Annotated[
 
 def require_owner(identity: CurrentIdentity) -> RequestIdentity:
     if identity.role != UserRole.OWNER:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner permission required",
+        raise api_error(
+            status.HTTP_403_FORBIDDEN,
+            "AUTHORIZATION_FAILED",
+            "Owner permission required",
         )
     return identity
 
@@ -138,9 +144,10 @@ def require_roles(*allowed_roles: UserRole) -> Callable:
         identity: Annotated[RequestIdentity, Depends(get_current_identity)],
     ) -> RequestIdentity:
         if identity.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
+            raise api_error(
+                status.HTTP_403_FORBIDDEN,
+                "AUTHORIZATION_FAILED",
+                "Insufficient permissions",
             )
         return identity
 
@@ -152,9 +159,10 @@ def authorize_roles(
     *allowed_roles: UserRole,
 ) -> RequestIdentity:
     if identity.role not in allowed_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
+        raise api_error(
+            status.HTTP_403_FORBIDDEN,
+            "AUTHORIZATION_FAILED",
+            "Insufficient permissions",
         )
     return identity
 

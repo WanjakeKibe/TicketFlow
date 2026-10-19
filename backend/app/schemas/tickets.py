@@ -3,12 +3,27 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import TicketPriority, TicketStatus
 
 
 class CreateTicketRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "title": "Cannot sign in",
+                    "description": "The customer cannot access the portal.",
+                    "status": "OPEN",
+                    "priority": "NORMAL",
+                    "category": "Access",
+                    "requester_id": "123e4567-e89b-12d3-a456-426614174000",
+                }
+            ]
+        }
+    )
+
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
     status: TicketStatus = TicketStatus.OPEN
@@ -19,6 +34,14 @@ class CreateTicketRequest(BaseModel):
 
 
 class UpdateTicketRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"expected_version": 1, "status": "IN_PROGRESS"}
+            ]
+        }
+    )
+
     expected_version: int = Field(ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
@@ -30,6 +53,14 @@ class UpdateTicketRequest(BaseModel):
 
 
 class CreateCommentRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"expected_version": 1, "body": "We are investigating this issue."}
+            ]
+        }
+    )
+
     expected_version: int = Field(ge=1)
     body: str = Field(min_length=1)
     is_internal: bool = False

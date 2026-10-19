@@ -5,6 +5,7 @@ from app.api.v1.auth import me_router, router as auth_router
 from app.api.v1.companies import router as companies_router
 from app.api.v1.health import router as health_router
 from app.api.v1.tickets import router as tickets_router
+from app.core.api_errors import documented_errors, register_api_error_handlers
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
@@ -18,6 +19,7 @@ app = FastAPI(
     version=settings.app_version,
     description="API-first, multi-tenant ticketing for support teams.",
 )
+register_api_error_handlers(app)
 
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
@@ -35,7 +37,7 @@ app.include_router(companies_router, prefix="/api/v1")
 app.include_router(tickets_router, prefix="/api/v1")
 
 
-@app.get("/")
+@app.get("/", responses=documented_errors(500))
 def root():
     return {
         "message": "Welcome to TicketFlow API",

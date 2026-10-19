@@ -502,6 +502,14 @@ Define stable codes for:
 
 Document request bodies, response bodies, authentication requirements, error responses, pagination, filters, and examples in the generated OpenAPI schema.
 
+Phase 8 is complete only when every gate below passes:
+
+- [x] API errors use the shared `{ "error": { "code": "...", "message": "..." } }` response shape.
+- [x] Stable error codes cover authentication, authorization, validation, missing resources, invalid lifecycle transitions, stale versions, idempotency conflicts, and revoked API keys.
+- [x] OpenAPI documents request and response schemas, authentication, common errors, pagination, filters, and examples.
+- [x] Focused tests verify the error contract and generated OpenAPI document.
+- [ ] Full backend tests pass with `python -m pytest -q` against PostgreSQL; PostgreSQL verification remains pending when Docker Desktop is unavailable.
+
 ## 11. Testing Plan
 
 Build tests alongside each implementation phase.

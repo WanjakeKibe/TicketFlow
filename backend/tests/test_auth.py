@@ -143,6 +143,13 @@ def test_api_key_is_hashed_tracked_and_revocable(
     )
     assert revoke_response.status_code == 200
 
+    revoked_key_response = client.get(
+        "/api/v1/tickets",
+        headers={"X-API-Key": raw_api_key},
+    )
+    assert revoked_key_response.status_code == 401
+    assert revoked_key_response.json()["error"]["code"] == "API_KEY_REVOKED"
+
     db_session.expire(stored_key)
     with pytest.raises(HTTPException) as error:
         get_api_key_identity(raw_api_key, db_session)
